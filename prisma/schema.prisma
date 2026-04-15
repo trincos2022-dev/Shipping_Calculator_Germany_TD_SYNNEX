@@ -1,16 +1,140 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Germany Tax & Shipping App - Prisma Schema
+// For Germany-specific models
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "sqlite"
   url      = "file:dev.sqlite"
+}
+
+model Settings_DE {
+  id            String   @id @default(cuid())
+  shop          String   @unique
+  taxPercentage Float
+  carrierCharge Float
+  updatedAt     DateTime @updatedAt
+  usdToEurRate  Float    @default(0.92)
+}
+
+model ProductMapping_DE {
+  id               String   @id @default(cuid())
+  shop             String
+  sku              String
+  ingramPartNumber String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+  price            Float?
+  @@unique([shop, sku])
+  @@index([shop])
+}
+
+model shopify_products_final_DE {
+  id               String   @id @default(cuid())
+  shop             String
+  sku              String
+  title            String
+  description      String?
+  price            Float
+  currency         String   @default("EUR")
+  inventoryQty     Int      @default(0)
+  vendor           String?
+  productType     String?
+  imageUrl         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@index([shop])
+  @@index([sku])
+}
+
+model ProductSyncJob_DE {
+  id         String    @id
+  shop       String
+  status     String
+  processed  Int       @default(0)
+  total      Int       @default(0)
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+  cursorSku  String?
+}
+
+model ShippingCalculationLog_DE {
+  id            String   @id @default(cuid())
+  shop          String
+  sku           String
+  basePrice     Float
+  taxAmount     Float
+  carrierCharge Float
+  total         Float
+  status        String
+  error         String?
+  createdAt     DateTime @default(now())
+  @@index([createdAt])
+  @@index([shop])
+}
+
+model RequestLog_DE {
+  id           String   @id @default(cuid())
+  shop         String
+  type         String
+  endpoint     String
+  method       String
+  requestBody  String?
+  responseBody String?
+  status       Int?
+  error        String?
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+  @@index([createdAt])
+  @@index([shop])
+}
+
+model CarrierConfiguration_DE {
+  id          String   @id
+  shopDomain  String
+  carrierCode String
+  carrierName String
+  carrierMode String
+  displayName String?
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  @@unique([shopDomain, carrierCode])
+  @@index([shopDomain])
+}
+
+model FallbackRateSettings_DE {
+  shopDomain  String   @id
+  enabled     Boolean  @default(true)
+  price       Float    @default(999.00)
+  title       String   @default("Shipping Unavailable")
+  description String   @default("Please contact support before placing this order")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model IngramCredential_DE {
+  shopDomain           String    @id
+  clientId             String
+  clientSecret         String
+  customerNumber       String
+  countryCode          String    @default("DE")
+  contactEmail         String?
+  senderId             String?
+  billToAddressId      String?
+  shipToAddressId      String?
+  sandbox              Boolean   @default(true)
+  accessToken          String?
+  accessTokenExpiresAt DateTime?
+  lastValidatedAt      DateTime?
+  lastValidationStatus String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Session {
