@@ -1,34 +1,9 @@
-export interface Settings_DE {
-  id: string;
-  shop: string;
-  taxPercentage: number;
-  carrierCharge: number;
-  updatedAt: Date;
-  usdToEurRate: number;
-}
-
 export interface ProductMapping_DE {
   id: string;
   shop: string;
   sku: string;
-  ingramPartNumber: string;
-  createdAt: Date;
-  updatedAt: Date;
-  price?: number;
-}
-
-export interface shopify_products_final_DE {
-  id: string;
-  shop: string;
-  sku: string;
-  title: string;
-  description?: string;
   price: number;
-  currency: string;
-  inventoryQty: number;
-  vendor?: string;
-  productType?: string;
-  imageUrl?: string;
+  part_number: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,7 +11,7 @@ export interface shopify_products_final_DE {
 export interface ProductSyncJob_DE {
   id: string;
   shop: string;
-  status: string;
+  status: "pending" | "running" | "completed" | "completed_with_errors" | "failed";
   processed: number;
   total: number;
   error?: string;
@@ -44,6 +19,27 @@ export interface ProductSyncJob_DE {
   updatedAt: Date;
   finishedAt?: Date;
   cursorSku?: string;
+}
+
+export interface SyncLog_DE {
+  id: string;
+  shop: string;
+  jobId: string;
+  action: string;
+  sourceSku?: string;
+  targetSku?: string;
+  status: string;
+  message?: string;
+  createdAt: Date;
+}
+
+export interface Settings_DE {
+  id: string;
+  shop: string;
+  taxPercentage: number;
+  carrierCharge: number;
+  updatedAt: Date;
+  usdToEurRate: number;
 }
 
 export interface ShippingCalculationLog_DE {
@@ -113,6 +109,31 @@ export interface IngramCredential_DE {
   lastValidationStatus?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface shopify_products_final_Germany {
+  id: bigint;
+  title?: string;
+  body_html?: string;
+  handle?: string;
+  vendor?: string;
+  product_type?: string;
+  tags?: string;
+  images?: unknown;
+  sku?: string;
+  inventory_management?: string;
+  inventory_quantity?: bigint;
+  price?: number;
+  compare_at_price?: number;
+  barcode?: string;
+  specs_table?: string;
+  information?: string;
+  created_at?: Date;
+  part_number?: bigint;
+  source_type?: string;
+  seo_title?: string;
+  seo_description?: string;
+  embedding?: string;
 }
 
 export const GERMAN_COLORS = {

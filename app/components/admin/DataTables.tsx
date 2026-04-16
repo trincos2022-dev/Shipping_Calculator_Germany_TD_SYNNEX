@@ -1,25 +1,31 @@
 import { useState } from "react";
 import { useFetcher } from "react-router";
 import { GERMAN_COLORS } from "./types";
-import type { ProductMapping_DE, shopify_products_final_DE } from "./types";
-
-interface ProductWithMapping extends shopify_products_final_DE {
-  mapping?: ProductMapping_DE;
-}
+import type { ProductMapping_DE, ProductSyncJob_DE, shopify_products_final_Germany, SyncLog_DE } from "./types";
 
 interface DataTablesProps {
-  products?: ProductWithMapping[];
+  products?: shopify_products_final_Germany[];
   mappings?: ProductMapping_DE[];
-  syncStatus?: {
-    status: string;
-    processed: number;
-    total: number;
-  } | null;
+  syncJob?: ProductSyncJob_DE | null;
+  syncLogs?: SyncLog_DE[];
 }
 
-export function DataTables({ products = [], mappings = [], syncStatus }: DataTablesProps) {
-  const [activeTab, setActiveTab] = useState<"products" | "mappings">("products");
+export function DataTables({ 
+  products: initialProducts = [], 
+  mappings: initialMappings = [], 
+  syncJob: initialSyncJob,
+  syncLogs: initialSyncLogs = [],
+}: DataTablesProps) {
   const fetcher = useFetcher();
+  
+  const products = initialProducts;
+  const mappings = initialMappings;
+  const syncJob = initialSyncJob;
+  const syncLogs = initialSyncLogs;
+
+  const [activeTab, setActiveTab] = useState<"products" | "mappings" | "logs">("products");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newMapping, setNewMapping] = useState({ sku: "", part_number: "", price: "" });
 
   const styles = {
     container: {
@@ -91,6 +97,10 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
       backgroundColor: GERMAN_COLORS.primary,
       color: "white",
     },
+    smallButton: {
+      padding: "6px 12px",
+      fontSize: "12px",
+    },
     progressBar: {
       height: "8px",
       backgroundColor: GERMAN_COLORS.border,
@@ -109,21 +119,64 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
       backgroundColor: GERMAN_COLORS.background,
       marginBottom: "16px",
     },
+    formRow: {
+      display: "flex",
+      gap: "12px",
+      marginBottom: "12px",
+      alignItems: "flex-end",
+    },
+    input: {
+      padding: "8px 12px",
+      borderRadius: "6px",
+      border: `1px solid ${GERMAN_COLORS.border}`,
+      fontSize: "14px",
+      flex: 1,
+    },
+    statusBadge: {
+      padding: "4px 8px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      fontWeight: 500,
+    },
+    statusSuccess: {
+      backgroundColor: `${GERMAN_COLORS.success}20`,
+      color: GERMAN_COLORS.success,
+    },
+    statusFailed: {
+      backgroundColor: `${GERMAN_COLORS.error}20`,
+      color: GERMAN_COLORS.error,
+    },
   };
 
-  const progressPercentage = syncStatus?.total 
-    ? Math.round((syncStatus.processed / syncStatus.total) * 100)
+  const progressPercentage = syncJob?.total 
+    ? Math.round((syncJob.processed / syncJob.total) * 100)
     : 0;
+
+  const handleAddMapping = () => {
+    fetcher.submit(
+      { 
+        action: "addMapping", 
+        sku: newMapping.sku, 
+        part_number: newMapping.part_number, 
+        price: newMapping.price 
+      },
+      { method: "post" }
+    );
+    setNewMapping({ sku: "", part_number: "", price: "" });
+    setShowAddForm(false);
+  };
+
+  const isSyncing = fetcher.state !== "idle" && fetcher.formData?.get("action") === "syncProducts";
 
   return (
     <div style={styles.container}>
       <h2 style={styles.header}>Product Data</h2>
 
-      {syncStatus && (
+      {syncJob && (
         <div style={styles.syncStatus}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-            <span><strong>Sync Status:</strong> {syncStatus.status}</span>
-            <span>{syncStatus.processed} / {syncStatus.total}</span>
+            <span><strong>Sync Status:</strong> {syncJob.status}</span>
+            <span>{syncJob.processed} / {syncJob.total}</span>
           </div>
           <div style={styles.progressBar}>
             <div style={{ ...styles.progressFill, width: `${progressPercentage}%` }} />
@@ -131,32 +184,41 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
         </div>
       )}
 
-      <button
-        style={styles.button}
-        onClick={() => fetcher.submit({ action: "syncProducts" }, { method: "post" })}
-        disabled={fetcher.state !== "idle"}
-      >
-        Sync Products
-      </button>
+      <fetcher.Form method="post">
+        <button
+          style={styles.button}
+          name="action"
+          value="syncProducts"
+          disabled={isSyncing}
+        >
+          {isSyncing ? "Syncing..." : "Sync Products to Mappings"}
+        </button>
+      </fetcher.Form>
 
       <div style={styles.tabs}>
         <button
           style={{ ...styles.tab, ...(activeTab === "products" ? styles.activeTab : {}) }}
           onClick={() => setActiveTab("products")}
         >
-          Product Catalog
+          Product Catalog ({products.length})
         </button>
         <button
           style={{ ...styles.tab, ...(activeTab === "mappings" ? styles.activeTab : {}) }}
           onClick={() => setActiveTab("mappings")}
         >
-          SKU Mappings
+          SKU Mappings ({mappings.length})
+        </button>
+        <button
+          style={{ ...styles.tab, ...(activeTab === "logs" ? styles.activeTab : {}) }}
+          onClick={() => setActiveTab("logs")}
+        >
+          Sync Logs ({syncLogs.length})
         </button>
       </div>
 
       {activeTab === "products" && (
         products.length === 0 ? (
-          <div style={styles.emptyState}>No products found</div>
+          <div style={styles.emptyState}>No products found in source table</div>
         ) : (
           <table style={styles.table}>
             <thead>
@@ -165,15 +227,17 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
                 <th style={styles.th}>Title</th>
                 <th style={styles.th}>Price</th>
                 <th style={styles.th}>Stock</th>
+                <th style={styles.th}>Part Number</th>
               </tr>
             </thead>
             <tbody>
               {products.map((product) => (
-                <tr key={product.id}>
-                  <td style={styles.td}>{product.sku}</td>
-                  <td style={styles.td}>{product.title}</td>
-                  <td style={styles.td}>{product.price.toFixed(2)} €</td>
-                  <td style={styles.td}>{product.inventoryQty}</td>
+                <tr key={product.id.toString()}>
+                  <td style={styles.td}>{product.sku || "-"}</td>
+                  <td style={styles.td}>{product.title || "-"}</td>
+                  <td style={styles.td}>{product.price ? `€${product.price.toFixed(2)}` : "-"}</td>
+                  <td style={styles.td}>{product.inventory_quantity?.toString() || "0"}</td>
+                  <td style={styles.td}>{product.part_number?.toString() || "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -182,39 +246,114 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
       )}
 
       {activeTab === "mappings" && (
-        mappings.length === 0 ? (
-          <div style={styles.emptyState}>No mappings found</div>
+        <>
+          <button
+            style={{ ...styles.button, marginBottom: "16px" }}
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            {showAddForm ? "Cancel" : "+ Add Mapping"}
+          </button>
+
+          {showAddForm && (
+            <div style={styles.formRow}>
+              <input
+                style={styles.input}
+                placeholder="Shop SKU"
+                value={newMapping.sku}
+                onChange={(e) => setNewMapping({ ...newMapping, sku: e.target.value })}
+              />
+              <input
+                style={styles.input}
+                placeholder="Ingram Part Number"
+                value={newMapping.part_number}
+                onChange={(e) => setNewMapping({ ...newMapping, part_number: e.target.value })}
+              />
+              <input
+                style={styles.input}
+                placeholder="Price"
+                type="number"
+                value={newMapping.price}
+                onChange={(e) => setNewMapping({ ...newMapping, price: e.target.value })}
+              />
+              <button style={styles.button} onClick={handleAddMapping}>Add</button>
+            </div>
+          )}
+
+          {mappings.length === 0 ? (
+            <div style={styles.emptyState}>No mappings found. Click Sync Products to create mappings.</div>
+          ) : (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Shop SKU</th>
+                  <th style={styles.th}>Ingram Part Number</th>
+                  <th style={styles.th}>Price</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mappings.map((mapping) => (
+                  <tr key={mapping.id}>
+                    <td style={styles.td}>{mapping.sku}</td>
+                    <td style={styles.td}>{mapping.part_number}</td>
+                    <td style={styles.td}>
+                      {mapping.price !== null && mapping.price !== undefined 
+                        ? `€${Number(mapping.price).toFixed(2)}` 
+                        : "-"}
+                    </td>
+                    <td style={styles.td}>
+                      <fetcher.Form method="post" style={{ display: "inline" }}>
+                        <input type="hidden" name="action" value="deleteMapping" />
+                        <input type="hidden" name="id" value={mapping.id} />
+                        <button
+                          style={{ ...styles.button, ...styles.smallButton, backgroundColor: GERMAN_COLORS.accent }}
+                          type="submit"
+                        >
+                          Delete
+                        </button>
+                      </fetcher.Form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      {activeTab === "logs" && (
+        syncLogs.length === 0 ? (
+          <div style={styles.emptyState}>No sync logs found</div>
         ) : (
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>Shop SKU</th>
-                <th style={styles.th}>Ingram Part Number</th>
-                <th style={styles.th}>Price</th>
-                <th style={styles.th}>Actions</th>
+                <th style={styles.th}>Time</th>
+                <th style={styles.th}>Job ID</th>
+                <th style={styles.th}>Action</th>
+                <th style={styles.th}>Source SKU</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Message</th>
               </tr>
             </thead>
             <tbody>
-              {mappings.map((mapping) => (
-                <tr key={mapping.id}>
-                  <td style={styles.td}>{mapping.sku}</td>
-                  <td style={styles.td}>{mapping.ingramPartNumber}</td>
+              {syncLogs.map((log) => (
+                <tr key={log.id}>
+                  <td style={styles.td}>{new Date(log.createdAt).toLocaleString()}</td>
+                  <td style={styles.td}>{log.jobId}</td>
+                  <td style={styles.td}>{log.action}</td>
+                  <td style={styles.td}>{log.sourceSku || "-"}</td>
                   <td style={styles.td}>
-                    {mapping.price !== null && mapping.price !== undefined 
-                      ? `${mapping.price.toFixed(2)} €` 
-                      : "-"}
-                  </td>
-                  <td style={styles.td}>
-                    <button
-                      style={{ ...styles.button, backgroundColor: GERMAN_COLORS.accent, padding: "6px 12px" }}
-                      onClick={() => fetcher.submit(
-                        { action: "deleteMapping", id: mapping.id },
-                        { method: "post" }
-                      )}
+                    <span
+                      style={{
+                        ...styles.statusBadge,
+                        ...(log.status === "SUCCESS" ? styles.statusSuccess : styles.statusFailed),
+                      }}
                     >
-                      Delete
-                    </button>
+                      {log.status}
+                    </span>
                   </td>
+                  <td style={styles.td}>{log.message || "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -223,4 +362,8 @@ export function DataTables({ products = [], mappings = [], syncStatus }: DataTab
       )}
     </div>
   );
+}
+
+export function loader() {
+  return null;
 }

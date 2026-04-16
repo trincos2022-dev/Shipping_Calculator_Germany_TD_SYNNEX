@@ -34,7 +34,7 @@ model shopify_products_final_Germany {
   embedding            String?
 }
 
-model Session_DE {
+model Session {
   id                  String    @id @default(cuid())
   shop                String    @unique
   state               String
@@ -86,4 +86,22 @@ model ProductSyncJob_DE {
   @@index([createdAt], name: "ProductSyncJob_DE_createdAt_idx")
 
   @@map("ProductSyncJob_DE")
+}
+
+model SyncLog_DE {
+  id          String   @id @default(uuid())
+  shop        String
+  jobId       String
+  action      String
+  sourceSku   String?
+  targetSku   String?
+  status      String
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@index([shop])
+  @@index([jobId])
+  @@index([createdAt])
+
+  @@map("sync_log_de")
 }
